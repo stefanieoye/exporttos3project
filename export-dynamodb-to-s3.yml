@@ -1,0 +1,98 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+
+  MyDynamoDBTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: 'id'
+          AttributeType: 'S'
+      KeySchema:
+        - AttributeName: 'id'
+          KeyType: 'HASH'
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  MyLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import time
+
+          def lambda_handler(event, context):
+              s3 = boto3.client('s3')
+              dynamodb = boto3.client('dynamodb')
+
+              # Export data to S3
+              timestamp = int(time.time())
+              file_key = 'dynamodb-export-{}.json'.format(timestamp)
+              s3.put_object(
+                  Bucket=event['bucket'],
+                  Key=file_key,
+                  Body=json.dumps(dynamodb.scan(TableName=event['table_name'])['Items'])
+              )
+
+      Handler: index.lambda_handler
+      Role: !GetAtt MyLambdaFunctionRole.Arn
+      Runtime: python3.8
+
+  MyLambdaFunctionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${MyS3Bucket}/*'
+        - PolicyName: DynamoDBAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                Resource: !GetAtt MyDynamoDBTable.Arn
+
+  MyCloudWatchEventRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 'Export DynamoDB data to S3 every day at 2:00 AM UTC'
+      ScheduleExpression: 'cron(0 2 * * ? *)'
+      Targets:
+        - Arn: !GetAtt MyLambdaFunction.Arn
+          Id: 'TargetFunctionV1'
+      State: 'ENABLED'
+
+  MyCloudWatchEventPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt MyLambdaFunction.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MyCloudWatchEventRule.Arn
+
+
+
+
