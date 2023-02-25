@@ -32,6 +32,6 @@ jobs:
               --parameter-overrides \
                   S3BucketName=my-export-bucket \
                   DynamoDBTableName=my-table-name \
-                  ScheduledTime="cron(0 2 * * ? *)" \
+                  ScheduledTime="cron(* * * * ? *)" \
                   Timezone="UTC" \
                   ExportPrefix="export/"
