@@ -5,7 +5,7 @@ Resources:
     Type: 'AWS::S3::Bucket'
     DeletionPolicy: Retain
 
-  MyDynamoDBTable:
+  MyDynamoDBTable2:
     Type: 'AWS::DynamoDB::Table'
     Properties:
       AttributeDefinitions:
