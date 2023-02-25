@@ -1,0 +1,36 @@
+name: create-resources
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-resources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v2.5.1
+        with:
+          node-version: 16
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create resources
+        run: |
+          aws cloudformation create-stack \
+          --stack-name my-stack \
+          --template-body file://export-dynamodb-to-s3.yml\
+          --parameters ParameterKey=BucketName,ParameterValue=my-bucket \
+          ParameterKey=TableName,ParameterValue=my-table \
+          ParameterKey=FunctionName,ParameterValue=my-function \
+          ParameterKey=EventRuleName,ParameterValue=my-event-rule \
+          --capabilities CAPABILITY_NAMED_IAM
